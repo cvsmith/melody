@@ -1,3 +1,4 @@
+import miditoaudio
 from mingus.containers import *
 from mingus.containers.instrument import MidiInstrument
 from mingus.midi.midi_file_out import write_Composition
@@ -47,7 +48,4 @@ for t in tracks:
 print comp
 
 write_Composition('test_composition.midi', comp, 240)
-
-
-
     
