@@ -17,14 +17,14 @@ def runStream(process = lambda x: x,
             vid.grab()
             return vid.retrieve()[1]
         capture = vidCapture
-    charToCode = { '':-1,'q':113 }
+    charToCode = { '':{-1},'q':{113,1048689} }
     key = charToCode['']
 
     first = True
 
-    while key != charToCode['q']:
+    while key not in charToCode['q']:
         loopStart = time.time()
-        if key != charToCode['']:
+        if key not in charToCode['']:
             print "key = '%s'" % key
         img = process(capture())
         if img.shape[0] > 640 or img.shape[1] > 480:

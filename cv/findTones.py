@@ -99,6 +99,7 @@ def hueThresh(colorName):
         lowHue  = s[colorName][0]
         highHue = s[colorName][1]
         channels = cv2.split(img)
+        print colorName,channels
         hue,sat,val = channels
         sat = cv2.threshold(sat,0,255,
                             cv2.THRESH_OTSU)[1]
@@ -180,13 +181,13 @@ def pipeline(fs):
     return fn
 
 def getPolys(key):
-    return [ holeClose,holeOpen,
-             extractContours(key),
+    return [ extractContours(key),
              polyApprox(key) ]
 
 def colorPipeline(color,contourKey,outKey):
-    return ([ put('preColor'), hueThresh(color) ] +
-            getPolys(contourKey) +
+    return ([ put('preColor'), hueThresh(color), holeClose,
+              holeOpen ] +
+            ([] if contourKey is None else getPolys(contourKey)) +
             [ put(outKey),get('preColor') ])
 
 def findBlack(contourKey):
@@ -205,18 +206,107 @@ def findBlack(contourKey):
                     extractContours(contourKey),
                     polyApprox(contourKey) ]
 
+def getOrientedRect(contourKey,rectKey,orientKey):
+    def orientedRect(s,img):
+        rectArea = lambda (x,y,w,h): w*h
+        contours = s[contourKey]
+        rects = [cv2.boundingRect(c) for c in contours]
+        rects = [(rectArea(r),r) for r in rects]
+        rects = sorted(rects)
+
+        mainRect   = rects[-2][1]
+        orientRect = rects[-3][1]
+        s[rectKey] = mainRect
+
+        print mainRect
+        mx,my,mw,mh = mainRect
+        ox,oy,ow,oh = orientRect
+        ox = ox + ow/2
+        oy = oy + oh/2
+        left   = (ox - mx) < mw/2
+        bottom = (oy - my) > mh/2
+
+        orientation = {
+            (True,True):   0, # bottom left, no rotation
+            (True,False):  1, # top left, 90deg
+            (False,False): 2, # top right, 180deg
+            (False,True):  3  # bottom right, 270deg
+        }[(left,bottom)]
+
+        s[orientKey] = orientation
+        img = img.copy()
+        mx,my,mw,mh = mainRect
+        ox,oy,ow,oh = orientRect
+        cv2.rectangle(img,(ox,oy),(ox+ow,oy+oh),(0,255,0),thickness=10)
+        cv2.rectangle(img,(mx,my),(mx+mw,my+mh),(255,255,0),thickness=10)
+        return img
+    return orientedRect
+
+def rotateToOrientation(orientKey,rectKey,imgKeys):
+    def rotate(s,img):
+        orient = s[orientKey]
+        x,y,w,h = s[rectKey]
+        imgw,imgh = 1,1
+        whUpdated = False
+        for i in imgKeys:
+            if not whUpdated:
+                imgh,imgw = img.shape[:2]
+                whUpdated = True
+            s[i] = np.rot90(s[i],orient)
+        for i in xrange(orient):
+            x,y,w,h = (y,imgw - x - w,h,w)
+            imgw,imgh = imgh,imgw
+        s[rectKey] = x,y,w,h
+        return img
+    return rotate
+
+def focus(rectKey):
+    def focusFn(s,img):
+        x,y,w,h = s[rectKey]
+        # print x,y,w,h
+        # img = img.copy()
+        # cv2.rectangle(img,(x,y),(x+w,y+h),(0,0,255),thickness=10)
+        return img[y:y+h, x:x+w]
+    return focusFn
+
+def mergeChannels(channelKeys):
+    def mergeFn(s,img):
+        return cv2.merge([s[k] for k in channelKeys])
+    return mergeFn
 
 process = ([ put('orig'),gaussian,hsv ] +
-           colorPipeline('red','redContours','redImg') +
-           colorPipeline('green','greenContours','greenImg') +
-           colorPipeline('blue','blueContours','blueImg') +
+           colorPipeline('red',None,'redImg') +
+           colorPipeline('green',None,'greenImg') +
+           colorPipeline('blue',None,'blueImg') +
            colorPipeline('orange','orgContours','orgImg') +
            # findBlack('blackContours') +
-           [ get('orig'),
-             drawContours('redContours',(255,0,0)),
-             drawContours('greenContours',(0,0,255)),
-             drawContours('blueContours',(0,255,0)),
-             drawContours('orgContours',(255,255,0)) ])
+
+           [
+             get('orig'),
+             put('oldOrig'),
+             getOrientedRect('orgContours','orgRect','orient'),
+             rotateToOrientation('orient','orgRect',
+                                 ['orig','redImg','greenImg',
+                                  'blueImg','orgImg']),
+             get('orig'),
+             focus('orgRect'),
+             put('orig'),
+             get('redImg'),
+             focus('orgRect'),
+             put('redImg'),
+             get('greenImg'),
+             focus('orgRect'),
+             put('greenImg'),
+             get('blueImg'),
+             focus('orgRect'),
+             put('blueImg'),
+             get('orgImg'),
+             focus('orgRect'),
+             put('orgImg'),
+
+             get('oldOrig'),
+             mergeChannels(['blueImg','greenImg','redImg'])
+             ])
 
 
 
@@ -244,5 +334,5 @@ if __name__ == '__main__':
          'pipelineLen':len(guiProcess)}
     imstream.runStream(lambda x: swallow(pipe)(s,x),
                         winName=winName,
-                        filename=filename)
+                        filename=filename,printTime=True)
 
