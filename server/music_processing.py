@@ -3,7 +3,6 @@ from mingus.containers import *
 from mingus.containers.instrument import MidiInstrument
 from mingus.midi.midi_file_out import write_Composition
 
-
 comp = Composition()
 t1 = Track(Instrument())
 t1.instrument = MidiInstrument(name='Acoustic Grand Piano')
@@ -21,42 +20,30 @@ tracks = [t1, t2, t3]
 notes = NoteContainer(['C-4', 'E-4', 'G-4', 'C-5'])
 
 bar1 = Bar(key='C', meter=(4, 4))
-bar1.length = 4
-bar1.current_beat = 0
-bar1.place_notes(notes[0], 1)
-bar1.current_beat = 1
-bar1.place_rest(1)
-bar1.current_beat = 2
-bar1.place_rest(1)
-bar1.current_beat = 3
-bar1.place_notes(notes[3], 1)
-print bar1.is_full()
+bar1.place_notes(notes[0], 4)
+bar1.place_rest(4)
+bar1.place_rest(4)
+bar1.place_notes(notes[2], 4)
 t1.add_bar(bar1)
 
 bar2 = Bar(key='C', meter=(4, 4))
-bar2.length = 4
-bar2.current_beat = 0
-bar2.place_rest(1)
-bar2.current_beat = 1
-bar2.place_notes(notes[1], 1)
-bar2.current_beat = 2
-bar2.place_rest(1)
-bar2.current_beat = 3
-bar2.place_notes(notes[3], 1)
-print bar2.is_full()
+if len(bar2) == 0:
+    bar2.place_rest(12)
+else:
+    bar2.place_rest(4)
+bar2.place_notes(notes[1], 4)
+if len(bar2) == 0:
+    bar2.place_rest(12)
+else:
+    bar2.place_rest(4)
+bar2.place_notes(notes[1], 4)
 t2.add_bar(bar2)
 
 bar3 = Bar(key='C', meter=(4, 4))
-bar3.length = 4
-bar3.current_beat = 0
-bar3.place_rest(1)
-bar3.current_beat = 1
-bar3.place_rest(1)
-bar3.current_beat = 2
-bar3.place_notes(notes[2], 1)
-bar3.current_beat = 3
-bar3.place_notes(notes[3], 1)
-print bar3.is_full()
+bar3.place_rest(12)
+bar3.place_rest(12)
+bar3.place_notes(notes[2], 4)
+bar3.place_notes(notes[3], 4)
 t3.add_bar(bar3)
 
 for t in tracks:
@@ -64,5 +51,5 @@ for t in tracks:
 
 print comp
 
-write_Composition('test_composition.mid', comp, 240)
+write_Composition('test_composition.mid', comp)
     
