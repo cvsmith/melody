@@ -3,6 +3,31 @@ from mingus.containers import *
 from mingus.containers.instrument import MidiInstrument
 from mingus.midi.midi_file_out import write_Composition
 
+test_data = [
+    (0.0, 
+        {
+            'r': [0.4, 0.1],
+            'g': [0.02],
+            'b': [0.88],
+        }
+    ),
+    (0.5,
+        {
+            'r': [0.7],
+            'g': [],
+            'b': [0.28, 0.5, 0.9]
+        }
+    ),
+    (0.9,
+        {
+            'r': [0.5],
+            'g': [0.9],
+            'b': [0.85]
+        }
+    )
+]
+
+
 comp = Composition()
 t1 = Track(Instrument())
 t1.instrument = MidiInstrument(name='Acoustic Grand Piano')
