@@ -99,6 +99,7 @@ def hueThresh(colorName):
         lowHue  = s[colorName][0]
         highHue = s[colorName][1]
         channels = cv2.split(img)
+        print colorName,channels
         hue,sat,val = channels
         sat = cv2.threshold(sat,0,255,
                             cv2.THRESH_OTSU)[1]
@@ -180,13 +181,13 @@ def pipeline(fs):
     return fn
 
 def getPolys(key):
-    return [ holeClose,holeOpen,
-             extractContours(key),
+    return [ extractContours(key),
              polyApprox(key) ]
 
 def colorPipeline(color,contourKey,outKey):
-    return ([ put('preColor'), hueThresh(color) ] +
-            getPolys(contourKey) +
+    return ([ put('preColor'), hueThresh(color), holeClose,
+              holeOpen ] +
+            ([] if contourKey is None else getPolys(contourKey)) +
             [ put(outKey),get('preColor') ])
 
 def findBlack(contourKey):
@@ -205,18 +206,138 @@ def findBlack(contourKey):
                     extractContours(contourKey),
                     polyApprox(contourKey) ]
 
+def getOrientedRect(contourKey,rectKey,orientKey):
+    def orientedRect(s,img):
+        rectArea = lambda (x,y,w,h): w*h
+        contours = s[contourKey]
+        rects = [cv2.boundingRect(c) for c in contours]
+        rects = [(rectArea(r),r) for r in rects]
+        rects = sorted(rects)
+
+        mainRect   = rects[-2][1]
+        orientRect = rects[-3][1]
+        s[rectKey] = mainRect
+
+        print mainRect
+        mx,my,mw,mh = mainRect
+        ox,oy,ow,oh = orientRect
+        ox = ox + ow/2
+        oy = oy + oh/2
+        left   = (ox - mx) < mw/2
+        bottom = (oy - my) > mh/2
+
+        orientation = {
+            (True,True):   0, # bottom left, no rotation
+            (True,False):  1, # top left, 90deg
+            (False,False): 2, # top right, 180deg
+            (False,True):  3  # bottom right, 270deg
+        }[(left,bottom)]
+
+        s[orientKey] = orientation
+        img = img.copy()
+        mx,my,mw,mh = mainRect
+        ox,oy,ow,oh = orientRect
+        cv2.rectangle(img,(ox,oy),(ox+ow,oy+oh),(0,255,0),thickness=10)
+        cv2.rectangle(img,(mx,my),(mx+mw,my+mh),(255,255,0),thickness=10)
+        return img
+    return orientedRect
+
+def rotateToOrientation(orientKey,rectKey,imgKeys):
+    def rotate(s,img):
+        orient = s[orientKey]
+        x,y,w,h = s[rectKey]
+        imgw,imgh = 1,1
+        whUpdated = False
+        for i in imgKeys:
+            if not whUpdated:
+                imgh,imgw = img.shape[:2]
+                whUpdated = True
+            s[i] = np.rot90(s[i],orient)
+        for i in xrange(orient):
+            x,y,w,h = (y,imgw - x - w,h,w)
+            imgw,imgh = imgh,imgw
+        s[rectKey] = x,y,w,h
+        return img
+    return rotate
+
+def focus(rectKey):
+    def focusFn(s,img):
+        x,y,w,h = s[rectKey]
+        # print x,y,w,h
+        # img = img.copy()
+        # cv2.rectangle(img,(x,y),(x+w,y+h),(0,0,255),thickness=10)
+        return img[y:y+h, x:x+w]
+    return focusFn
+
+def mergeChannels(channelKeys):
+    def mergeFn(s,img):
+        return cv2.merge([s[k] for k in channelKeys])
+    return mergeFn
+
+def liftOp(f):
+    def liftedFn(s,img):
+        return f(img)
+    return liftedFn
+
+def buildNoteStream(outKey):
+    def noteStream(s,img):
+        print "Running noteStream"
+        def stream():
+            numRows = img.shape[0]
+            numCols = img.shape[1]
+            ret = []
+            for y in xrange(numRows):
+                notes  = [[],[],[]]
+                starts = [-1,-1,-1]
+                for x in xrange(numCols):
+                    for i in xrange(3):
+                        if starts[i] >= 0 and img[y,x,i] == 0:
+                            notes[i].append((float(x)+starts[i])/2/numCols)
+                            starts[i] = -1
+                        elif starts[i] < 0 and img[y,x,i] != 0:
+                            starts[i] = x
+                yield {'red':notes[0],'green':notes[1],
+                       'blue':notes[2]}
+        s[outKey] = stream()
+        return img
+    return noteStream
 
 process = ([ put('orig'),gaussian,hsv ] +
-           colorPipeline('red','redContours','redImg') +
-           colorPipeline('green','greenContours','greenImg') +
-           colorPipeline('blue','blueContours','blueImg') +
+           colorPipeline('red',None,'redImg') +
+           colorPipeline('green',None,'greenImg') +
+           colorPipeline('blue',None,'blueImg') +
            colorPipeline('orange','orgContours','orgImg') +
            # findBlack('blackContours') +
-           [ get('orig'),
-             drawContours('redContours',(255,0,0)),
-             drawContours('greenContours',(0,0,255)),
-             drawContours('blueContours',(0,255,0)),
-             drawContours('orgContours',(255,255,0)) ])
+
+           [
+             get('orig'),
+             put('oldOrig'),
+             getOrientedRect('orgContours','orgRect','orient'),
+             rotateToOrientation('orient','orgRect',
+                                 ['orig','redImg','greenImg',
+                                  'blueImg','orgImg']),
+             get('orig'),
+             focus('orgRect'),
+             put('orig'),
+             get('redImg'),
+             focus('orgRect'),
+             put('redImg'),
+             get('greenImg'),
+             focus('orgRect'),
+             put('greenImg'),
+             get('blueImg'),
+             focus('orgRect'),
+             put('blueImg'),
+             get('orgImg'),
+             focus('orgRect'),
+             put('orgImg'),
+
+             get('oldOrig'),
+             mergeChannels(['blueImg','greenImg','redImg']),
+             liftOp(lambda x: np.transpose(x,(1,0,2))),
+             liftOp(lambda x: x[:,::-1]),
+             buildNoteStream('notes')
+             ])
 
 
 
@@ -231,18 +352,49 @@ def swallow(f):
             return x
     return fn
 
+defaultState = {'red': [147,0],'blue': [100,135],'green':[30,99],
+        'orange': [0,27],'closeSteps':3000*15/2827,
+        'pipelineLen':len(process),'polyApproxK':0}
+
+def processImage(x,state=None,processPrefix=[]):
+    if state is None:
+        state = {k:v for k,v in defaultState.iteritems()}
+    pipe = pipeline(processPrefix + process)
+    state['pipelineLen'] += len(processPrefix)
+    finalImg = pipe(state,x)
+    print state.keys()
+    return (state['notes'],finalImg)
+
 if __name__ == '__main__':
     import sys
     import imstream
     filename = 'test.jpg'
+    runLong = False
     if len(sys.argv) > 1:
         filename = sys.argv[1]
-    guiProcess = [initState] + process
-    pipe = pipeline(guiProcess)
-    s = {'red': [147,0],'blue': [100,135],'green':[30,99],
-         'orange': [0,27],'closeSteps':3000*15/2827,#'pipelineLen':4}
-         'pipelineLen':len(guiProcess)}
-    imstream.runStream(lambda x: swallow(pipe)(s,x),
-                        winName=winName,
-                        filename=filename)
+        if len(sys.argv) > 2 and sys.argv[2] == 'r':
+            runLong = True
+    state = {k:v for k,v in defaultState.iteritems()}
+    def printShit(s,x,gui = True):
+        notes,img = processImage(x,s,[lambda s,x: initState(s,x,gui)])
+        print '['
+        first = True
+        for n in notes:
+            if not first:
+                print ','
+            else:
+                first = False
+            print json.dumps(n),
+        print
+        print ']'
+        return img
+    # wholeProcess = lambda s,x: processImage(x,s,[initState])[1]
+
+    if runLong:
+        imstream.runStream(lambda x: swallow(printShit)(state,x),
+                            winName=winName,
+                        filename=filename,printTime=True)
+    else:
+        img = cv2.imread(filename)
+        swallow(lambda s,x: printShit(s,x,gui=False))(state,img)
 
