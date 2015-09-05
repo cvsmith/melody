@@ -274,6 +274,34 @@ def mergeChannels(channelKeys):
         return cv2.merge([s[k] for k in channelKeys])
     return mergeFn
 
+def liftOp(f):
+    def liftedFn(s,img):
+        return f(img)
+    return liftedFn
+
+def buildNoteStream(outKey):
+    def noteStream(s,img):
+        print "Running noteStream"
+        def stream():
+            numRows = img.shape[0]
+            numCols = img.shape[1]
+            ret = []
+            for y in xrange(numRows):
+                notes  = [[],[],[]]
+                starts = [-1,-1,-1]
+                for x in xrange(numCols):
+                    for i in xrange(3):
+                        if starts[i] >= 0 and img[y,x,i] == 0:
+                            notes[i].append((float(x)+starts[i])/2/numCols)
+                            starts[i] = -1
+                        elif starts[i] < 0 and img[y,x,i] != 0:
+                            starts[i] = x
+                yield {'red':notes[0],'green':notes[1],
+                       'blue':notes[2]}
+        s[outKey] = stream()
+        return img
+    return noteStream
+
 process = ([ put('orig'),gaussian,hsv ] +
            colorPipeline('red',None,'redImg') +
            colorPipeline('green',None,'greenImg') +
@@ -305,7 +333,10 @@ process = ([ put('orig'),gaussian,hsv ] +
              put('orgImg'),
 
              get('oldOrig'),
-             mergeChannels(['blueImg','greenImg','redImg'])
+             mergeChannels(['blueImg','greenImg','redImg']),
+             liftOp(lambda x: np.transpose(x,(1,0,2))),
+             liftOp(lambda x: x[:,::-1]),
+             buildNoteStream('notes')
              ])
 
 
@@ -321,18 +352,49 @@ def swallow(f):
             return x
     return fn
 
+defaultState = {'red': [147,0],'blue': [100,135],'green':[30,99],
+        'orange': [0,27],'closeSteps':3000*15/2827,
+        'pipelineLen':len(process),'polyApproxK':0}
+
+def processImage(x,state=None,processPrefix=[]):
+    if state is None:
+        state = {k:v for k,v in defaultState.iteritems()}
+    pipe = pipeline(processPrefix + process)
+    state['pipelineLen'] += len(processPrefix)
+    finalImg = pipe(state,x)
+    print state.keys()
+    return (state['notes'],finalImg)
+
 if __name__ == '__main__':
     import sys
     import imstream
     filename = 'test.jpg'
+    runLong = False
     if len(sys.argv) > 1:
         filename = sys.argv[1]
-    guiProcess = [initState] + process
-    pipe = pipeline(guiProcess)
-    s = {'red': [147,0],'blue': [100,135],'green':[30,99],
-         'orange': [0,27],'closeSteps':3000*15/2827,#'pipelineLen':4}
-         'pipelineLen':len(guiProcess)}
-    imstream.runStream(lambda x: swallow(pipe)(s,x),
-                        winName=winName,
+        if len(sys.argv) > 2 and sys.argv[2] == 'r':
+            runLong = True
+    state = {k:v for k,v in defaultState.iteritems()}
+    def printShit(s,x,gui = True):
+        notes,img = processImage(x,s,[lambda s,x: initState(s,x,gui)])
+        print '['
+        first = True
+        for n in notes:
+            if not first:
+                print ','
+            else:
+                first = False
+            print json.dumps(n),
+        print
+        print ']'
+        return img
+    # wholeProcess = lambda s,x: processImage(x,s,[initState])[1]
+
+    if runLong:
+        imstream.runStream(lambda x: swallow(printShit)(state,x),
+                            winName=winName,
                         filename=filename,printTime=True)
+    else:
+        img = cv2.imread(filename)
+        swallow(lambda s,x: printShit(s,x,gui=False))(state,img)
 
