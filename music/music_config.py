@@ -10,14 +10,14 @@ PENT_SCALE = {
 }
 
 ALL_NOTES = []
-for octave in (3, 4, 5, 6):
+for octave in (2, 3, 4, 5):
     for degree in xrange(5):
         ALL_NOTES += [Note(PENT_SCALE[degree], octave)]
 
 COLOR_INSTR_NRS = {
-    'r': 71,     # Acoustic Grand Piano
-    'g': 40,    # Violin
-    'b': 0,    # Clarinet
+    'r': 81,     # Acoustic Grand Piano
+    'g': 39,    # Violin
+    'b': 40,    # Clarinet
 }
 
 METER = (48, 4) # Beats per bar, duration of beat

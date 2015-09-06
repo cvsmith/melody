@@ -387,7 +387,7 @@ process = ([ put('orig'),gaussian,hsv ] +
              mergeChannels(['blueImg','greenImg','redImg']),
              liftOp(lambda x: np.transpose(x,(1,0,2))),
              liftOp(lambda x: x[:,::-1]),
-             downScale((480,320)),
+             downScale((320,240)),
              buildNoteStream('notes'),
              liftOp(quantizeNotes,key='notes')
 ])
@@ -418,7 +418,7 @@ def processImage(x,state=None,processPrefix=[]):
     print state.keys()
     return ([] if 'notes' not in state else state['notes'],finalImg)
 
-if __name__ == '__main__':
+def main():
     import sys
     import imstream
     filename = 'test.jpg'
@@ -456,4 +456,7 @@ if __name__ == '__main__':
             s['pipelineLen'] = len(process) + 1
             return printShit(s,x,gui=False)
         swallow(runOnce)(state,img)
+
+if __name__ == '__main__':
+    main()
 
