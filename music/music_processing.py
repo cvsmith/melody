@@ -110,8 +110,8 @@ def merge_wave_files(infiles, outfile):
     sound3 = AudioSegment.from_file(infiles[2])
 
     temp = sound1.overlay(sound2)
-    final = sound3.overlay(combined)
+    final = sound3.overlay(temp)
 
-    combined.export(outfile, format='wav')
+    final.export(outfile, format='wav')
     
 write_midi_file(TEST_DATA)
