@@ -6,6 +6,9 @@ import cv2
 import music.music_processing as mp
 from datetime import datetime
 from subprocess import call
+from twilio import twiml
+import urllib
+import time
 import json
 
 UPLOAD_FOLDER = os.path.join('.', 'notecv', 'images')
@@ -15,32 +18,34 @@ ALLOWED_EXTENSIONS = set(['png', 'jpg', 'jpeg'])
 melody = Flask(__name__)
 melody.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 
-@melody.route("/", methods=['POST'])
-def app():
-    try:
-        if request.method == 'POST':
-            print dir(request)
-            print 'data:{}'.format(request.data)
-            image_path = save_image(request)
-            image_data = do_cv(image_path)
-            wav_path   = make_music(image_data)
-            wav_path = url_for('static', filename='output.wav')
-            return redirect(wav_path)
-    except:
-        import traceback,sys
-        print (sys.exc_info()[0])
-        traceback.print_tb(sys.exc_info()[2])
+@melody.route("/sms", methods=['POST'])
+def sms():
+    response = twiml.Response()
+    
+    if request.form['NumMedia'] != '0':
+        image_path = save_image_sms(request.form['MediaUrl0'])
+        print "Saved image"
+        image_data = do_cv(image_path)
+        print "Anaylzed image"
+        wav_path = make_music(image_data)
+        print "Made music"
+        wav_path = url_for('static', filename='output.wav')
+        response.message(url_for(wav_path))
+    else:
+        response.message("Could not find an image in your message.")
+ 
+    return str(response)
 
 # Save image to images folder and return path to that folder
-def save_image(request):
-    if request.method == 'POST':
-        file = request.files['file']
-        name = str(datetime.now()) + '.' + file.filename
-        if file and allowed_file(name):
-            filename = secure_filename(name)
-            path = os.path.join(melody.config['UPLOAD_FOLDER'], filename)
-            file.save(path)
-            return path
+def save_image_sms(media):
+    print "first"
+    print media
+    filename = os.path.join(melody.config['UPLOAD_FOLDER'],
+            str(time.time()) + '.jpg')
+    print filename
+    urllib.urlretrieve(media, filename) 
+    print "got file"
+    return filename
 
 def do_cv(imgPath):
     img = cv2.imread(imgPath)
