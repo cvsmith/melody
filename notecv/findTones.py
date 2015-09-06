@@ -2,6 +2,7 @@ import cv2
 import numpy as np
 import math
 import json
+import scipy.ndimage.interpolation as sp
 
 winName = 'threshold'
 
@@ -283,12 +284,22 @@ def liftOp(f,key=None):
         return f(img)
     return liftedFn
 
+def downScale(dim):
+    def downScaleFn(s,img):
+        maxSize = math.sqrt(dim[0]*dim[1])
+        size = math.sqrt(img.shape[0]*img.shape[1])
+        factor = maxSize/size
+        if factor < 1:
+            img = sp.zoom(img,(factor,factor,1))
+        return img
+    return downScaleFn
+
 def buildNoteStream(outKey):
     def noteStream(s,img):
         print "Running noteStream"
-        def stream():
-            numRows = img.shape[0]
-            numCols = img.shape[1]
+        def stream(img):
+            numRows = int(img.shape[0])
+            numCols = int(img.shape[1])
             ret = []
             for y in xrange(numRows):
                 notes  = [[],[],[]]
@@ -301,9 +312,9 @@ def buildNoteStream(outKey):
                         elif starts[i] < 0 and img[y,x,i] != 0:
                             starts[i] = x
                 yield (float(y)/numRows,
-                       {'r':notes[0],'g':notes[1],
-                        'b':notes[2]})
-        s[outKey] = stream()
+                       {'r':notes[2],'g':notes[1],
+                        'b':notes[0]})
+        s[outKey] = stream(img)
         return img
     return noteStream
 
@@ -317,7 +328,7 @@ def quantizeNotes(stream,time=48,notes=20):
         ret = {}
         for k,counts in entryCounts.iteritems():
             ret[k] = [note for note,count in counts.iteritems()
-                        if count*10 >= entryCount]
+                        if count*2 >= entryCount]
         return (second,ret)
 
     for entry in stream:
@@ -376,6 +387,7 @@ process = ([ put('orig'),gaussian,hsv ] +
              mergeChannels(['blueImg','greenImg','redImg']),
              liftOp(lambda x: np.transpose(x,(1,0,2))),
              liftOp(lambda x: x[:,::-1]),
+             downScale((480,320)),
              buildNoteStream('notes'),
              liftOp(quantizeNotes,key='notes')
 ])
