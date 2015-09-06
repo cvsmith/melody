@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-8"?>
+<RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent" android:layout_height="100dp">
+
+    <Button
+        android:layout_width="50dp"
+        android:layout_height="45dp"
+        android:id="@+id/btn_delete"
+        android:background="@drawable/pic_delete"
+        android:layout_marginStart="47dp"
+        android:layout_marginLeft="47dp"
+        android:layout_centerVertical="true"/>
+
+    <Button
+        android:layout_width="50dp"
+        android:layout_height="45dp"
+        android:id="@+id/btn_send"
+        android:layout_marginRight="47dp"
+        android:layout_marginEnd="47dp"
+        android:background="@drawable/pic_submit"
+        android:layout_centerVertical="true"
+        android:layout_alignParentRight="true"
+        android:layout_alignParentEnd="true" />
+</RelativeLayout>
