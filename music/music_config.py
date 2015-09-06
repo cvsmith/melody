@@ -14,8 +14,6 @@ for octave in (3, 4, 5, 6):
     for degree in xrange(5):
         ALL_NOTES += [Note(PENT_SCALE[degree], octave)]
 
-print ALL_NOTES
-
 COLOR_INSTR_NRS = {
     'r': 0,     # Acoustic Grand Piano
     'g': 40,    # Violin
@@ -23,3 +21,7 @@ COLOR_INSTR_NRS = {
 }
 
 METER = (48, 4) # Beats per bar, duration of beat
+
+REST_LENGTH = 4
+FIRST_REST_LENGTH = 12
+BEAT_LENGTH = 4
