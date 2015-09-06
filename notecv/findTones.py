@@ -274,8 +274,12 @@ def mergeChannels(channelKeys):
         return cv2.merge([s[k] for k in channelKeys])
     return mergeFn
 
-def liftOp(f):
+def liftOp(f,key=None):
     def liftedFn(s,img):
+        if key is not None:
+            val = s[key] if key in s else None
+            s[key] = f(val)
+            return img
         return f(img)
     return liftedFn
 
@@ -296,11 +300,47 @@ def buildNoteStream(outKey):
                             starts[i] = -1
                         elif starts[i] < 0 and img[y,x,i] != 0:
                             starts[i] = x
-                yield {'red':notes[0],'green':notes[1],
-                       'blue':notes[2]}
+                yield (float(y)/numRows,
+                       {'r':notes[0],'g':notes[1],
+                        'b':notes[2]})
         s[outKey] = stream()
         return img
     return noteStream
+
+def quantizeNotes(stream,time=48,notes=20):
+    maxTime = time  - 1
+    maxNote = notes - 1
+    second = 0
+    entryCount = 0
+    entryCounts = None
+    def sendCurrent():
+        ret = {}
+        for k,counts in entryCounts.iteritems():
+            ret[k] = [note for note,count in counts.iteritems()
+                        if count*10 >= entryCount]
+        return (second,ret)
+
+    for entry in stream:
+        t,obj = entry
+        while t*(maxTime + 0.9) >= second + 1:
+            if entryCounts is not None:
+                yield sendCurrent()
+            second += 1
+            entryCounts = None
+            entryCount  = 0
+        if entryCounts is None:
+            entryCounts = {k:{} for k in obj}
+        entryCount += 1
+
+        for k,vals in obj.iteritems():
+            counts = entryCounts[k]
+            for v in vals:
+                v = int(v*(maxNote + 0.9))
+                if v not in counts:
+                    counts[v] = 1
+                else:
+                    counts[v] += 1
+    yield sendCurrent()
 
 process = ([ put('orig'),gaussian,hsv ] +
            colorPipeline('red',None,'redImg') +
@@ -336,8 +376,9 @@ process = ([ put('orig'),gaussian,hsv ] +
              mergeChannels(['blueImg','greenImg','redImg']),
              liftOp(lambda x: np.transpose(x,(1,0,2))),
              liftOp(lambda x: x[:,::-1]),
-             buildNoteStream('notes')
-             ])
+             buildNoteStream('notes'),
+             liftOp(quantizeNotes,key='notes')
+])
 
 
 
@@ -359,11 +400,11 @@ defaultState = {'red': [147,0],'blue': [100,135],'green':[30,99],
 def processImage(x,state=None,processPrefix=[]):
     if state is None:
         state = {k:v for k,v in defaultState.iteritems()}
+        state['pipelineLen'] += len(processPrefix)
     pipe = pipeline(processPrefix + process)
-    state['pipelineLen'] += len(processPrefix)
     finalImg = pipe(state,x)
     print state.keys()
-    return (state['notes'],finalImg)
+    return ([] if 'notes' not in state else state['notes'],finalImg)
 
 if __name__ == '__main__':
     import sys
@@ -377,6 +418,8 @@ if __name__ == '__main__':
     state = {k:v for k,v in defaultState.iteritems()}
     def printShit(s,x,gui = True):
         notes,img = processImage(x,s,[lambda s,x: initState(s,x,gui)])
+        # print notes
+        # print list(notes)
         print '['
         first = True
         for n in notes:
@@ -388,13 +431,17 @@ if __name__ == '__main__':
         print
         print ']'
         return img
-    # wholeProcess = lambda s,x: processImage(x,s,[initState])[1]
+
+    wholeProcess = lambda s,x: processImage(x,s,[initState])[1]
 
     if runLong:
-        imstream.runStream(lambda x: swallow(printShit)(state,x),
+        imstream.runStream(lambda x: swallow(wholeProcess)(state,x),
                             winName=winName,
                         filename=filename,printTime=True)
     else:
         img = cv2.imread(filename)
-        swallow(lambda s,x: printShit(s,x,gui=False))(state,img)
+        def runOnce(s,x):
+            s['pipelineLen'] = len(process) + 1
+            return printShit(s,x,gui=False)
+        swallow(runOnce)(state,img)
 
