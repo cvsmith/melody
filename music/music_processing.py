@@ -3,9 +3,10 @@ from mingus.containers import *
 from mingus.containers.instrument import MidiInstrument
 from mingus.midi.midi_file_out import write_Composition, write_Track
 from music_config import * 
-import random
-import wave
 from pydub import AudioSegment
+import random
+import sys
+import wave
 
 TEST_DATA = [
 [0, {"r": [], "b": [], "g": []}] ,
@@ -59,7 +60,7 @@ TEST_DATA = [
 ]
 
 # Write MIDI file corresponding to music data, return path to 
-def write_midi_file(data):
+def write_midi_files(data):
     tracks = make_tracks(data)
     for i in xrange(len(tracks)):
         write_Track('track%s.mid' % i, tracks[i], 180)
@@ -114,4 +115,8 @@ def merge_wave_files(infiles, outfile):
 
     final.export(outfile, format='wav')
     
-write_midi_file(TEST_DATA)
+write_midi_files(TEST_DATA)
+sys.argv = ['', '--sf2-dir', './', '--midi-dir', './']
+miditoaudio.main()
+merge_wave_files(['track0.wav', 'track1.wav', 'track2.wav'], 'output.wav')
+
