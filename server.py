@@ -7,6 +7,7 @@ import music.music_processing as mp
 from datetime import datetime
 from subprocess import call
 import json
+import random,string
 
 UPLOAD_FOLDER = os.path.join('.', 'notecv', 'images')
 ALLOWED_EXTENSIONS = set(['png', 'jpg', 'jpeg'])
@@ -15,8 +16,12 @@ ALLOWED_EXTENSIONS = set(['png', 'jpg', 'jpeg'])
 melody = Flask(__name__)
 melody.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 
-@melody.route("/", methods=['GET','POST'])
+@melody.route("/", methods=['GET'])
 def app():
+    return melody.send_static_file('index.html')
+
+@melody.route("/upload/", methods=['POST'])
+def upload():
     try:
         if request.method == 'POST':
             print dir(request)
@@ -25,10 +30,8 @@ def app():
             image_path = save_image(name,request)
             image_data = do_cv(image_path)
             wav_path   = make_music(name,image_data)
-            wav_path = url_for('static', filename='output.wav')
+            wav_path = url_for('static', filename=wav_path)
             return redirect(wav_path)
-        else:
-            return melody.send_static_file('index.html')
     except:
         import traceback,sys
         print (sys.exc_info()[0])
@@ -37,16 +40,20 @@ def app():
 def random_name():
     return ''.join(random.choice(string.ascii_uppercase +
                                  string.ascii_lowercase)
-                   for _ in range(6))
+                   for _ in xrange(6))
 
 # Save image to images folder and return path to that folder
-def save_image(request):
+def save_image(name,request):
     if request.method == 'POST':
+        print request.form
+        print request.files
         file = request.files['file']
-        name = name + '.' + str(datetime.now()) + '.' + file.filename
+        name = str(datetime.now()) + '.' + name + '.' + file.filename
         if file and allowed_file(name):
             filename = secure_filename(name)
+            print filename
             path = os.path.join(melody.config['UPLOAD_FOLDER'], filename)
+            print path
             file.save(path)
             return path
 
@@ -55,15 +62,16 @@ def do_cv(imgPath):
     return cv.processImage(img)[0]
 
 def make_music(name,imgData):
+    print "MAKING MUSIC"
     print imgData
     currDir = os.getcwd()
     os.chdir("./music")
     # imgData = json.loads(json.dumps(imgData))
     outname = name + '.wav'
     mp.main(imgData,outfile=outname)
-    call(["mv", os.joinpath('.',outname), "../static/"])
+    call(["mv", os.path.join('.',outname), "../static/"])
     os.chdir(currDir)
-    return os.joinpath('.','static',outname)
+    return outname
 
 # Return True if filename is allowed
 def allowed_file(filename):

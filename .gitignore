@@ -1,2 +1,4 @@
 *.pyc
 .*.sw*
+*.wav
+notecv/images

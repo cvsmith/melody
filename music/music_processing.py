@@ -5,18 +5,23 @@ from mingus.midi.midi_file_out import write_Composition, write_Track
 from music_config import * 
 from pydub import AudioSegment
 import random
-import sys
+import sys,os
 import wave
 
 # Write MIDI file corresponding to music data, return path to 
-def write_midi_files(data):
+def write_midi_files(name,data):
     tracks = make_tracks(data)
+    ret = []
     for i in xrange(len(tracks)):
-        write_Track('track%s.mid' % i, tracks[i], 180, repeat=1)
-    
+        filename = name + ('.%s.mid' % i)
+        ret.append(filename)
+        write_Track(filename, tracks[i], 180, repeat=1)
+    return ret
+
 
 # Return mingus composition object from data
 def make_tracks(data):
+    print COLOR_INSTR_NRS
     r_track = Track(Instrument())
     r_track.instrument.instrument_nr = COLOR_INSTR_NRS['r']
     r_bar = Bar(key='C', meter=METER)
@@ -55,9 +60,9 @@ def make_tracks(data):
 
 # Merge wave files
 def merge_wave_files(infiles, outfile):
-    sound1 = AudioSegment.from_file(infiles[0])
-    sound2 = AudioSegment.from_file(infiles[1])
-    sound3 = AudioSegment.from_file(infiles[2])
+    sound1 = AudioSegment.from_file(infiles[0]).apply_gain(20)
+    sound2 = AudioSegment.from_file(infiles[1]).apply_gain(20)
+    sound3 = AudioSegment.from_file(infiles[2]).apply_gain(20)
 
     temp = sound1.overlay(sound2)
     final = sound3.overlay(temp)
@@ -65,11 +70,15 @@ def merge_wave_files(infiles, outfile):
     final.export(outfile, format='wav')
 
 def main(testData,outfile='output.wav'):
-    write_midi_files(testData)
+    midiNames = write_midi_files(outfile,testData)
+    print os.getcwd()
     sys.argv = ['', '--sf2-dir', './', '--midi-dir', './']
     miditoaudio.main()
-    merge_wave_files(['track0.wav', 'track1.wav', 'track2.wav'],
-                     outfile)
+    wavNames = [outfile + '.0.wav', outfile + '.1.wav',
+                outfile + '.2.wav']
+    merge_wave_files(wavNames, outfile)
+    for fn in midiNames + wavNames:
+        os.remove(fn)
 
 if __name__ == '__main__':
     main([
