@@ -97,7 +97,10 @@ def save_image(name,request):
 
 def do_cv(imgPath, oriented=False):
     img = cv2.imread(imgPath)
-    return cv.processImage(img, oriented=oriented)[0]
+    if oriented:
+        return cv.processImage(img, oriented=oriented)[0]
+    else:
+        return cv.processImage(img)[0]
 
 def make_music(name,imgData):
     print "MAKING MUSIC"
