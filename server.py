@@ -22,21 +22,50 @@ def app():
 
 @melody.route("/upload-ios/", methods=['POST'])
 def upload_ios():
-    return upload(request, oriented=True)
-
-@melody.route("/upload-android/", methods=['POST'])
-def upload_android():
-    return upload(request, oriented=True)
-
-@melody.route("/upload/", methods=['POST'])
-def upload(request, oriented=False):
     try:
         if request.method == 'POST':
             print dir(request)
             print 'data:{}'.format(request.data)
             name = random_name()
             image_path = save_image(name,request)
-            image_data = do_cv(image_path, oriented=oriented)
+            image_data = do_cv(image_path, oriented=True)
+            wav_path   = make_music(name,image_data)
+            wav_path = url_for('static', filename=wav_path)
+            return redirect(wav_path)
+    except:
+        import traceback,sys
+        print (sys.exc_info()[0])
+        traceback.print_tb(sys.exc_info()[2])
+        return "Please upload a picture."
+
+@melody.route("/upload-android/", methods=['POST'])
+def upload_android():
+    try:
+        if request.method == 'POST':
+            print dir(request)
+            print 'data:{}'.format(request.data)
+            name = random_name()
+            image_path = save_image(name,request)
+            image_data = do_cv(image_path, oriented=True)
+            wav_path   = make_music(name,image_data)
+            wav_path = url_for('static', filename=wav_path)
+            return redirect(wav_path)
+    except:
+        import traceback,sys
+        print (sys.exc_info()[0])
+        traceback.print_tb(sys.exc_info()[2])
+        return "Please upload a picture."
+
+# Webpage upload, which expects an orange box
+@melody.route("/upload/", methods=['POST'])
+def upload():
+    try:
+        if request.method == 'POST':
+            print dir(request)
+            print 'data:{}'.format(request.data)
+            name = random_name()
+            image_path = save_image(name,request)
+            image_data = do_cv(image_path, oriented=False)
             wav_path   = make_music(name,image_data)
             wav_path = url_for('static', filename=wav_path)
             return redirect(wav_path)
