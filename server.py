@@ -20,15 +20,23 @@ melody.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 def app():
     return melody.send_static_file('index.html')
 
+@melody.route("/upload-ios/", methods=['POST'])
+def upload_ios():
+    return upload(request, oriented=True)
+
+@melody.route("/upload-android/", methods=['POST'])
+def upload_android():
+    return upload(request, oriented=True)
+
 @melody.route("/upload/", methods=['POST'])
-def upload():
+def upload(request, oriented=False):
     try:
         if request.method == 'POST':
             print dir(request)
             print 'data:{}'.format(request.data)
             name = random_name()
             image_path = save_image(name,request)
-            image_data = do_cv(image_path)
+            image_data = do_cv(image_path, oriented=oriented)
             wav_path   = make_music(name,image_data)
             wav_path = url_for('static', filename=wav_path)
             return redirect(wav_path)
@@ -36,8 +44,7 @@ def upload():
         import traceback,sys
         print (sys.exc_info()[0])
         traceback.print_tb(sys.exc_info()[2])
-        return "Please upload a picture of your orange box."
-
+        return "Please upload a picture."
 
 def random_name():
     return ''.join(random.choice(string.ascii_uppercase +
@@ -59,9 +66,9 @@ def save_image(name,request):
             file.save(path)
             return path
 
-def do_cv(imgPath):
+def do_cv(imgPath, oriented=False):
     img = cv2.imread(imgPath)
-    return cv.processImage(img)[0]
+    return cv.processImage(img, oriented=oriented)[0]
 
 def make_music(name,imgData):
     print "MAKING MUSIC"
