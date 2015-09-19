@@ -36,6 +36,8 @@ def upload():
         import traceback,sys
         print (sys.exc_info()[0])
         traceback.print_tb(sys.exc_info()[2])
+        return "Please upload a picture of your orange box."
+
 
 def random_name():
     return ''.join(random.choice(string.ascii_uppercase +
